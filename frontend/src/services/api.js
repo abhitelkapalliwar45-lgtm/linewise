@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8000/api/queues'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/queues'
 
 export async function createQueue({ name, category, avgServiceTimeSeconds = 300 }) {
   const res = await fetch(`${API_BASE_URL}/create`, {
