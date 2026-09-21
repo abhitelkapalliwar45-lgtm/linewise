@@ -30,16 +30,19 @@ def read_root():
         "docs_url": "/docs"
     }
 
-@app.get("/api/system/status")
-def system_status():
-    return {
-        "status": "online",
-        "database_type": config.DB_TYPE,
-        "email_service_ready": bool(config.SMTP_PASSWORD and config.SMTP_USER),
-        "smtp_user": config.SMTP_USER,
-        "smtp_host": config.SMTP_HOST,
-        "smtp_port": config.SMTP_PORT
-    }
+@app.get("/api/system/test-email")
+def test_email_diagnostic(to_email: str = "abhitelkapalliwar45@gmail.com"):
+    import smtplib, ssl
+    if not config.SMTP_PASSWORD:
+        return {"success": False, "error": "SMTP_PASSWORD is missing in server environment variables."}
+    try:
+        context = ssl.create_default_context()
+        with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=8) as server:
+            server.starttls(context=context)
+            server.login(config.SMTP_USER, config.SMTP_PASSWORD)
+        return {"success": True, "message": "SMTP Connection & Auth succeeded on this server!"}
+    except Exception as e:
+        return {"success": False, "error": str(e), "error_type": type(e).__name__}
 
 if __name__ == "__main__":
     uvicorn.run("backend.main:app", host=config.HOST, port=config.PORT, reload=True)
