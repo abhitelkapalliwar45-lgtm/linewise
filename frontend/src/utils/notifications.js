@@ -113,3 +113,19 @@ export function buildWhatsAppUrl(phone, message) {
   }
   return `https://wa.me/?text=${encodedText}`
 }
+
+// Dispatch an automated email via Vercel HTTPS relay
+export async function sendEmailViaRelay({ to, subject, html, text }) {
+  if (!to || !to.trim()) return null
+  try {
+    const res = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: to.trim(), subject, html, text }),
+    })
+    return await res.json()
+  } catch (err) {
+    console.warn('[EmailRelay] Failed to dispatch email via relay:', err)
+    return null
+  }
+}

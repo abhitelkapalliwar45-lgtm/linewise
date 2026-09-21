@@ -7,7 +7,7 @@ import {
   completeCustomerService,
   skipCustomer,
 } from '../services/api'
-import { buildWhatsAppUrl } from '../utils/notifications'
+import { buildWhatsAppUrl, sendEmailViaRelay } from '../utils/notifications'
 
 function AdminDashboard() {
   const { queueId } = useParams()
@@ -44,6 +44,36 @@ function AdminDashboard() {
       const res = await callNextCustomer(queueId)
       if (res.success) {
         setOtpSuccess(res.message)
+        // Send urgent OTP notification via email if customer email exists
+        if (res.ticket && res.ticket.customer_email) {
+          const queueName = data?.queue?.name || 'LineWise Counter Desk'
+          const ticketUrl = `${window.location.origin}/ticket/${queueId}/${res.ticket.id}`
+          sendEmailViaRelay({
+            to: res.ticket.customer_email,
+            subject: `📢 IT'S YOUR TURN! (Token ${res.ticket.display_number}) - OTP: ${res.ticket.qvc_otp}`,
+            text: `Hello ${res.ticket.customer_name},\n\nIT'S YOUR TURN!\nToken: ${res.ticket.display_number}\nQueue: ${queueName}\n\nYOUR 4-DIGIT VERIFICATION OTP: ${res.ticket.qvc_otp}\n\nPlease proceed to the counter desk now.`,
+            html: `
+              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+                <div style="background: linear-gradient(135deg, #ea580c, #c2410c); padding: 24px; text-align: center; border-radius: 12px; color: white;">
+                  <h2 style="margin: 0; font-size: 22px;">📢 IT'S YOUR TURN!</h2>
+                  <p style="margin: 4px 0 0 0; opacity: 0.9; font-size: 14px;">${queueName}</p>
+                </div>
+                <div style="padding: 20px 0; text-align: center;">
+                  <p style="font-size: 15px; color: #475569; margin: 0;">Hello <strong>${res.ticket.customer_name}</strong>,</p>
+                  <p style="color: #64748b; font-size: 13px; margin: 4px 0 20px 0;">Your token <strong>${res.ticket.display_number}</strong> is now called to the counter!</p>
+                  <div style="background: #fff7ed; border: 2px solid #fdba74; border-radius: 16px; padding: 20px; margin-bottom: 20px;">
+                    <div style="font-size: 12px; font-weight: 700; color: #c2410c; text-transform: uppercase;">Your 4-Digit Verification OTP</div>
+                    <div style="font-size: 44px; font-weight: 900; letter-spacing: 6px; color: #9a3412; margin: 8px 0;">${res.ticket.qvc_otp}</div>
+                    <div style="font-size: 12px; color: #7c2d12;">Share this OTP with the counter officer to verify your turn</div>
+                  </div>
+                  <a href="${ticketUrl}" style="display: inline-block; background: #ea580c; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 10px; font-weight: 700; font-size: 14px;">
+                    View Live Ticket & Status &rarr;
+                  </a>
+                </div>
+              </div>
+            `,
+          }).catch(() => {})
+        }
       } else {
         setOtpError(res.message)
       }

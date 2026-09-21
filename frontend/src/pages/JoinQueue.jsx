@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getQueueDetails, joinQueue } from '../services/api'
 
-import { requestNotificationPermission } from '../utils/notifications'
+import { requestNotificationPermission, sendEmailViaRelay } from '../utils/notifications'
 
 function JoinQueue() {
   const { queueId } = useParams()
@@ -41,6 +41,44 @@ function JoinQueue() {
     try {
       const res = await joinQueue(queueId, customerName, customerPhone, customerEmail)
       if (res.success && res.ticket) {
+        // Dispatch instant email confirmation via relay
+        if (customerEmail && customerEmail.trim()) {
+          const queueName = queue?.name || 'LineWise Service Desk'
+          const displayNumber = res.ticket.display_number
+          const position = res.ticket.position_in_queue || 1
+          const waitTime = res.ticket.estimated_wait_formatted || 'Calculating...'
+          const ticketUrl = `${window.location.origin}/ticket/${queueId}/${res.ticket.id}`
+
+          sendEmailViaRelay({
+            to: customerEmail.trim(),
+            subject: `🎟️ Token Confirmed: ${displayNumber} - ${queueName}`,
+            text: `Hello ${customerName},\n\nYou have joined the line at ${queueName}!\n\nYour Token: ${displayNumber}\nPosition: #${position}\nEstimated Wait: ${waitTime}\n\nTrack your live ticket:\n${ticketUrl}`,
+            html: `
+              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff;">
+                <div style="background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 24px; text-align: center; border-radius: 12px; color: white;">
+                  <h2 style="margin: 0; font-size: 22px;">⚡ LineWise Token Confirmed</h2>
+                  <p style="margin: 4px 0 0 0; opacity: 0.9; font-size: 14px;">${queueName}</p>
+                </div>
+                <div style="padding: 20px 0; text-align: center;">
+                  <p style="font-size: 15px; color: #475569; margin: 0;">Hello <strong>${customerName}</strong>,</p>
+                  <p style="color: #64748b; font-size: 13px; margin: 4px 0 20px 0;">You are confirmed in line. Here are your ticket details:</p>
+                  <div style="background: #eff6ff; border: 2px dashed #93c5fd; border-radius: 16px; padding: 20px; margin-bottom: 20px;">
+                    <div style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase;">Your Token Number</div>
+                    <div style="font-size: 40px; font-weight: 900; color: #1d4ed8; margin: 6px 0;">${displayNumber}</div>
+                    <div style="font-size: 13px; color: #475569;">Position in Line: <strong>#${position}</strong></div>
+                  </div>
+                  <div style="background: #f8fafc; padding: 12px; border-radius: 10px; font-size: 14px; margin-bottom: 20px;">
+                    ⏱️ Estimated Wait Time: <strong>${waitTime}</strong>
+                  </div>
+                  <a href="${ticketUrl}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 10px; font-weight: 700; font-size: 14px;">
+                    View Live Ticket & Status &rarr;
+                  </a>
+                </div>
+              </div>
+            `,
+          }).catch(() => {})
+        }
+
         // Redirect to Live Ticket status page
         navigate(`/ticket/${queueId}/${res.ticket.id}`)
       }
