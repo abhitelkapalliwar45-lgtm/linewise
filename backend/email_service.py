@@ -9,35 +9,56 @@ from backend.config import config
 
 
 def _dispatch_email(to_email: str, subject: str, html_body: str, text_body: str) -> None:
-    """Internal synchronous function to send an email via SMTP."""
+    """Internal function to send an email via direct SMTP with automatic HTTPS relay fallback."""
     if not to_email or not to_email.strip():
         return
 
-    if not config.SMTP_PASSWORD:
-        print(f"[EmailService] Notice: SMTP_PASSWORD is not configured in .env. Email to {to_email} was not sent.")
-        return
+    # 1. Try Direct SMTP (works locally and on unblocked cloud hosts)
+    if config.SMTP_PASSWORD:
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = Header(subject, "utf-8")
+            msg["From"] = f"LineWise Queue Alerts <{config.SMTP_USER}>"
+            msg["To"] = to_email
 
+            part1 = MIMEText(text_body, "plain", "utf-8")
+            part2 = MIMEText(html_body, "html", "utf-8")
+
+            msg.attach(part1)
+            msg.attach(part2)
+
+            context = ssl.create_default_context()
+            with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=5) as server:
+                server.starttls(context=context)
+                server.login(config.SMTP_USER, config.SMTP_PASSWORD)
+                server.send_message(msg)
+
+            print(f"[EmailService] Successfully sent email to {to_email} via direct SMTP")
+            return
+        except Exception as smtp_err:
+            print(f"[EmailService] Direct SMTP failed ({smtp_err}). Falling back to HTTPS relay...")
+
+    # 2. Fallback to HTTPS relay (Port 443, unblocked on Render)
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = Header(subject, "utf-8")
-        msg["From"] = f"LineWise Queue Alerts <{config.SMTP_USER}>"
-        msg["To"] = to_email
-
-        part1 = MIMEText(text_body, "plain", "utf-8")
-        part2 = MIMEText(html_body, "html", "utf-8")
-
-        msg.attach(part1)
-        msg.attach(part2)
-
-        context = ssl.create_default_context()
-        with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=10) as server:
-            server.starttls(context=context)
-            server.login(config.SMTP_USER, config.SMTP_PASSWORD)
-            server.send_message(msg)
-
-        print(f"[EmailService] Successfully sent email to {to_email}")
-    except Exception as e:
-        print(f"[EmailService] Warning: Failed to send email to {to_email}: {e}")
+        import httpx
+        relay_url = "https://linewise-alpha.vercel.app/api/send-email"
+        res = httpx.post(
+            relay_url,
+            json={
+                "to": to_email,
+                "subject": subject,
+                "html": html_body,
+                "text": text_body
+            },
+            timeout=10.0
+        )
+        if res.status_code == 200:
+            print(f"[EmailService] Successfully sent email to {to_email} via HTTPS relay")
+            return
+        else:
+            print(f"[EmailService] HTTPS relay returned status {res.status_code}: {res.text}")
+    except Exception as relay_err:
+        print(f"[EmailService] Warning: HTTPS relay failed for {to_email}: {relay_err}")
 
 
 def send_ticket_confirmation_email(
