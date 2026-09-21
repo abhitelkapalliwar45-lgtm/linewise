@@ -30,5 +30,16 @@ def read_root():
         "docs_url": "/docs"
     }
 
+@app.get("/api/system/status")
+def system_status():
+    return {
+        "status": "online",
+        "database_type": config.DB_TYPE,
+        "email_service_ready": bool(config.SMTP_PASSWORD and config.SMTP_USER),
+        "smtp_user": config.SMTP_USER,
+        "smtp_host": config.SMTP_HOST,
+        "smtp_port": config.SMTP_PORT
+    }
+
 if __name__ == "__main__":
     uvicorn.run("backend.main:app", host=config.HOST, port=config.PORT, reload=True)
