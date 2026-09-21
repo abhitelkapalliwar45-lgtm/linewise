@@ -1,6 +1,7 @@
 import smtplib
 import ssl
 import threading
+from email.header import Header
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
@@ -18,12 +19,12 @@ def _dispatch_email(to_email: str, subject: str, html_body: str, text_body: str)
 
     try:
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
+        msg["Subject"] = Header(subject, "utf-8")
         msg["From"] = f"LineWise Queue Alerts <{config.SMTP_USER}>"
         msg["To"] = to_email
 
-        part1 = MIMEText(text_body, "plain")
-        part2 = MIMEText(html_body, "html")
+        part1 = MIMEText(text_body, "plain", "utf-8")
+        part2 = MIMEText(html_body, "html", "utf-8")
 
         msg.attach(part1)
         msg.attach(part2)
@@ -32,9 +33,9 @@ def _dispatch_email(to_email: str, subject: str, html_body: str, text_body: str)
         with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=10) as server:
             server.starttls(context=context)
             server.login(config.SMTP_USER, config.SMTP_PASSWORD)
-            server.sendmail(config.SMTP_USER, to_email, msg.as_string())
+            server.send_message(msg)
 
-        print(f"[EmailService] Successfully sent email to {to_email}: {subject}")
+        print(f"[EmailService] Successfully sent email to {to_email}")
     except Exception as e:
         print(f"[EmailService] Warning: Failed to send email to {to_email}: {e}")
 

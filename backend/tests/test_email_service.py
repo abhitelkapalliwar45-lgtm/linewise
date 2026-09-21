@@ -23,13 +23,12 @@ def test_dispatch_email(mock_smtp):
 
     assert mock_server.starttls.called
     assert mock_server.login.called
-    assert mock_server.sendmail.called
-    args = mock_server.sendmail.call_args[0]
-    assert args[0] == config.SMTP_USER
-    assert args[1] == "customer@example.com"
-    raw_msg = args[2]
-    assert "Test Subject" in raw_msg
-    assert "<h1>Hello HTML</h1>" in raw_msg
+    assert mock_server.send_message.called
+    msg = mock_server.send_message.call_args[0][0]
+    assert msg["To"] == "customer@example.com"
+    payload = msg.get_payload()
+    assert "Hello Text" in payload[0].get_payload(decode=True).decode("utf-8")
+    assert "<h1>Hello HTML</h1>" in payload[1].get_payload(decode=True).decode("utf-8")
 
 @patch("backend.email_service._dispatch_email")
 def test_send_ticket_confirmation_email(mock_dispatch):
