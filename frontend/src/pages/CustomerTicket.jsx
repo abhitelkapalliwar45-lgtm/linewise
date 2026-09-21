@@ -1,6 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getTicketStatus } from '../services/api'
+import {
+  requestNotificationPermission,
+  sendSystemNotification,
+  playTurnChime,
+  speakTurnAlert,
+  vibrateDevice,
+  buildWhatsAppUrl,
+} from '../utils/notifications'
 
 function CustomerTicket() {
   const { queueId, ticketId } = useParams()
@@ -8,6 +16,13 @@ function CustomerTicket() {
   const [ticket, setTicket] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const hasAlertedJoinedRef = useRef(false)
+  const hasAlertedCalledRef = useRef(false)
+
+  // Request notification permission once on mount
+  useEffect(() => {
+    requestNotificationPermission()
+  }, [])
 
   useEffect(() => {
     let intervalId = null
@@ -17,6 +32,28 @@ function CustomerTicket() {
         const data = await getTicketStatus(queueId, ticketId)
         setTicket(data)
         setError('')
+
+        // Notification 1: Initial join confirmation notification
+        if (data && data.status === 'WAITING' && !hasAlertedJoinedRef.current) {
+          hasAlertedJoinedRef.current = true
+          sendSystemNotification(`🎟️ Token Confirmed: ${data.display_number}`, {
+            body: `Hello ${data.customer_name}! You're in line at position #${data.position_in_queue || 1}. Estimated wait: ${data.estimated_wait_formatted || 'calculating...'}.`,
+            tag: `join-${ticketId}`,
+          })
+        }
+
+        // Notification 2: When user's turn arrives (status becomes CALLED)
+        if (data && data.status === 'CALLED' && !hasAlertedCalledRef.current) {
+          hasAlertedCalledRef.current = true
+          sendSystemNotification(`📢 It's Your Turn! (${data.display_number})`, {
+            body: `Please proceed to the counter desk now. Your verification OTP is: ${data.qvc_otp}`,
+            requireInteraction: true,
+            tag: `called-${ticketId}`,
+          })
+          vibrateDevice([400, 200, 400, 200, 400])
+          playTurnChime()
+          speakTurnAlert(`Token ${data.display_number}, please proceed to the counter.`)
+        }
       } catch (err) {
         setError(err.message || 'Error fetching ticket status')
       } finally {
@@ -167,10 +204,30 @@ function CustomerTicket() {
             </div>
           )}
 
+          {/* Free WhatsApp Alert Link */}
+          {!isCompleted && !isSkipped && (
+            <div className="pt-2">
+              <a
+                href={buildWhatsAppUrl(
+                  ticket.customer_phone,
+                  `*LineWise Digital Queue Ticket*\n🎫 Token: *${ticket.display_number}*\n👤 Name: ${ticket.customer_name}\n📍 Queue ID: ${ticket.queue_id}\n⏳ Estimated Wait: ${ticket.estimated_wait_formatted}\n\nTrack your live position and get your OTP here:\n${typeof window !== 'undefined' ? window.location.href : ''}`
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-xs shadow-sm transition hover:scale-[1.02]"
+              >
+                <span>📲</span> Save Ticket to WhatsApp
+              </a>
+              <p className="text-[11px] text-gray-400 dark:text-slate-500 mt-1.5">
+                Keeps your ticket link and token saved in your personal chat.
+              </p>
+            </div>
+          )}
+
           {/* Refresh hint */}
           <div className="pt-2 text-xs text-gray-400 dark:text-slate-500 flex items-center justify-center gap-2">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping"></span>
-            Real-Time Live Sync Active
+            Real-Time Live Sync &amp; Alerts Active
           </div>
         </div>
       </div>

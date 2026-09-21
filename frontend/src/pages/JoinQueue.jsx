@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getQueueDetails, joinQueue } from '../services/api'
 
+import { requestNotificationPermission } from '../utils/notifications'
+
 function JoinQueue() {
   const { queueId } = useParams()
   const navigate = useNavigate()
   const [queue, setQueue] = useState(null)
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -31,8 +34,12 @@ function JoinQueue() {
     if (!customerName.trim()) return
     setSubmitting(true)
     setError('')
+
+    // Pre-prompt for lock screen / system notifications
+    await requestNotificationPermission()
+
     try {
-      const res = await joinQueue(queueId, customerName, customerPhone)
+      const res = await joinQueue(queueId, customerName, customerPhone, customerEmail)
       if (res.success && res.ticket) {
         // Redirect to Live Ticket status page
         navigate(`/ticket/${queueId}/${res.ticket.id}`)
@@ -115,15 +122,34 @@ function JoinQueue() {
 
             <div>
               <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase mb-1">
+                Email Address (For Instant Token &amp; Turn Alerts)
+              </label>
+              <input
+                type="email"
+                value={customerEmail}
+                onChange={(e) => setCustomerEmail(e.target.value)}
+                placeholder="e.g. yourname@gmail.com"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-[11px] text-gray-400 dark:text-slate-500">
+                Receive token confirmation and your 4-digit OTP directly in your inbox.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase mb-1">
                 Mobile Number (Optional)
               </label>
               <input
                 type="tel"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="For SMS / WhatsApp alerts"
+                placeholder="e.g. 9876543210 (For WhatsApp alerts)"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <p className="mt-1 text-[11px] text-gray-400 dark:text-slate-500">
+                Optional: helps counter staff send you a WhatsApp alert if needed.
+              </p>
             </div>
 
             <button

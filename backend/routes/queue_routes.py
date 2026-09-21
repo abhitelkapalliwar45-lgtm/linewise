@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from backend.database import db
+from backend.email_service import send_ticket_confirmation_email, send_turn_called_email
 from backend.models import (
     CreateQueueRequest,
     JoinQueueRequest,
@@ -56,12 +57,28 @@ def join_queue(queue_id: str, req: JoinQueueRequest):
     ticket = db.join_queue(
         queue_id=queue_id,
         customer_name=req.customer_name,
-        customer_phone=req.customer_phone
+        customer_phone=req.customer_phone,
+        customer_email=req.customer_email
     )
     if not ticket:
         raise HTTPException(status_code=400, detail="Queue is closed or inactive.")
 
     live_ticket = db.get_ticket_live_status(queue_id, ticket["id"])
+
+    # Send automated email confirmation if customer provided an email address
+    if req.customer_email:
+        queue = db.get_queue(queue_id)
+        queue_name = queue["name"] if queue else "LineWise Service Counter"
+        send_ticket_confirmation_email(
+            to_email=req.customer_email,
+            customer_name=live_ticket["customer_name"],
+            display_number=live_ticket["display_number"],
+            queue_name=queue_name,
+            position=live_ticket["position_in_queue"],
+            wait_time=live_ticket["estimated_wait_formatted"],
+            ticket_url=f"/ticket/{queue_id}/{live_ticket['id']}"
+        )
+
     return {
         "success": True,
         "message": "Successfully joined the queue!",
@@ -83,6 +100,20 @@ def call_next(queue_id: str):
             "success": False,
             "message": "No customers currently waiting in line."
         }
+
+    # Send automated turn-called email if customer registered an email
+    if ticket.get("customer_email"):
+        queue = db.get_queue(queue_id)
+        queue_name = queue["name"] if queue else "LineWise Service Counter"
+        send_turn_called_email(
+            to_email=ticket["customer_email"],
+            customer_name=ticket["customer_name"],
+            display_number=ticket["display_number"],
+            queue_name=queue_name,
+            qvc_otp=ticket.get("qvc_otp", "0000"),
+            ticket_url=f"/ticket/{queue_id}/{ticket['id']}"
+        )
+
     return {
         "success": True,
         "message": f"Customer {ticket['display_number']} ({ticket['customer_name']}) has been called! OTP generated.",

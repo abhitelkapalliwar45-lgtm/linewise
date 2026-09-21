@@ -7,8 +7,8 @@ function Navbar() {
   const navLinks = [
     { label: 'Home', to: '/' },
     { label: 'Get Started', to: '/get-started' },
-    { label: 'Generate QR', to: '/generate-code' },
-    { label: 'Scan Code', to: '/scan' },
+    { label: 'Admin Panel', to: '/admin-portal' },
+    { label: 'User Panel', to: '/user-portal' },
   ]
 
   return (

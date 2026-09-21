@@ -7,6 +7,7 @@ import {
   completeCustomerService,
   skipCustomer,
 } from '../services/api'
+import { buildWhatsAppUrl } from '../utils/notifications'
 
 function AdminDashboard() {
   const { queueId } = useParams()
@@ -154,8 +155,13 @@ function AdminDashboard() {
 
           <div className="flex items-center gap-3">
             <button
+              onClick={() => navigate('/admin-portal')}
+              className="px-4 py-2.5 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 text-sm font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800"
+            >
+              Switch Queue ↔
+            </button>
+            <button
               onClick={() => navigate(`/join/${queue.id}`)}
-              target="_blank"
               className="px-4 py-2.5 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 text-sm font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800"
             >
               Open Join Link ↗
@@ -222,14 +228,32 @@ function AdminDashboard() {
                     <p className="text-xs text-amber-800 dark:text-amber-300 font-semibold uppercase">Token Called</p>
                     <p className="text-3xl font-black text-amber-900 dark:text-amber-200">{calledTicket.display_number}</p>
                     <p className="text-sm font-bold text-gray-800 dark:text-slate-200">{calledTicket.customer_name}</p>
+                    {calledTicket.customer_email && (
+                      <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">✉️ {calledTicket.customer_email}</p>
+                    )}
                   </div>
-                  <button
-                    onClick={() => handleSkipTicket(calledTicket.id)}
-                    disabled={actionLoading}
-                    className="px-3 py-1.5 bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 text-xs font-bold rounded-lg hover:bg-red-200 dark:hover:bg-red-900"
-                  >
-                    Skip Customer
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {calledTicket.customer_phone && (
+                      <a
+                        href={buildWhatsAppUrl(
+                          calledTicket.customer_phone,
+                          `*LineWise Queue Counter Alert*\nHello ${calledTicket.customer_name}, your token *${calledTicket.display_number}* is now called at *${queue.name}*!\n\nYour 4-Digit Verification OTP is: *${calledTicket.qvc_otp}*\n\nPlease proceed to the counter desk now.`
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition"
+                      >
+                        <span>📲</span> WhatsApp Customer
+                      </a>
+                    )}
+                    <button
+                      onClick={() => handleSkipTicket(calledTicket.id)}
+                      disabled={actionLoading}
+                      className="px-3 py-1.5 bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 text-xs font-bold rounded-lg hover:bg-red-200 dark:hover:bg-red-900"
+                    >
+                      Skip Customer
+                    </button>
+                  </div>
                 </div>
 
                 <form onSubmit={handleVerifyOtp} className="pt-2 space-y-3">
@@ -336,14 +360,32 @@ function AdminDashboard() {
                     <tr key={t.id} className="hover:bg-blue-50/30 dark:hover:bg-slate-800/40">
                       <td className="p-3 font-bold text-gray-700 dark:text-slate-300">#{idx + 1}</td>
                       <td className="p-3 font-mono font-bold text-blue-600 dark:text-blue-400">{t.display_number}</td>
-                      <td className="p-3 font-semibold text-gray-900 dark:text-white">{t.customer_name}</td>
+                      <td className="p-3">
+                        <p className="font-semibold text-gray-900 dark:text-white">{t.customer_name}</p>
+                        {t.customer_email && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400">{t.customer_email}</p>
+                        )}
+                      </td>
                       <td className="p-3 text-gray-500 dark:text-slate-400">{t.customer_phone || '-'}</td>
                       <td className="p-3">
                         <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300">
                           {t.status}
                         </span>
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right space-x-2">
+                        {t.customer_phone && (
+                          <a
+                            href={buildWhatsAppUrl(
+                              t.customer_phone,
+                              `*LineWise Queue Notice*\nHello ${t.customer_name}, your token is *${t.display_number}* at *${queue.name}*. You are currently #${idx + 1} in line.`
+                            )}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-block px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
+                          >
+                            📲 WhatsApp
+                          </a>
+                        )}
                         <button
                           onClick={() => handleSkipTicket(t.id)}
                           className="px-3 py-1 text-xs font-semibold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50"

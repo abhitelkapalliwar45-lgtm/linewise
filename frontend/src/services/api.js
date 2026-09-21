@@ -1,4 +1,11 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/queues'
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL
+  }
+  const hostname = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost'
+  return `http://${hostname}:8000/api/queues`
+}
+const API_BASE_URL = getApiBaseUrl()
 
 export async function createQueue({ name, category, avgServiceTimeSeconds = 300 }) {
   const res = await fetch(`${API_BASE_URL}/create`, {
@@ -26,13 +33,14 @@ export async function getQueueDetails(queueId) {
   return res.json()
 }
 
-export async function joinQueue(queueId, customerName, customerPhone = '') {
+export async function joinQueue(queueId, customerName, customerPhone = '', customerEmail = '') {
   const res = await fetch(`${API_BASE_URL}/${queueId}/join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       customer_name: customerName,
       customer_phone: customerPhone,
+      customer_email: customerEmail,
     }),
   })
   if (!res.ok) {

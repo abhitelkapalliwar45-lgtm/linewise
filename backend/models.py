@@ -26,6 +26,7 @@ class CreateQueueRequest(BaseModel):
 class JoinQueueRequest(BaseModel):
     customer_name: str = Field(..., description="Name of customer joining queue")
     customer_phone: str = Field(default="", description="Optional customer phone number")
+    customer_email: str = Field(default="", description="Optional customer email address for notifications")
 
 class VerifyOtpRequest(BaseModel):
     ticket_id: str
@@ -38,6 +39,7 @@ class TicketResponse(BaseModel):
     display_number: str
     customer_name: str
     customer_phone: str
+    customer_email: Optional[str] = ""
     joined_at: str
     status: TicketStatus
     qvc_otp: Optional[str] = None  # Visible to customer when CALLED or IN_SERVICE

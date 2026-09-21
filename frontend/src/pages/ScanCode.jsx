@@ -1,96 +1,102 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Html5Qrcode } from 'html5-qrcode'
 
 function ScanCode() {
   const navigate = useNavigate()
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [isScanning, setIsScanning] = useState(false)
-  const [scannerSupported] = useState(() => 'BarcodeDetector' in window && !!navigator.mediaDevices?.getUserMedia)
-  const videoRef = useRef(null)
-  const streamRef = useRef(null)
-  const scanTimerRef = useRef(null)
+  const scannerRef = useRef(null)
 
-  const stopScanner = () => {
-    if (scanTimerRef.current) {
-      window.clearInterval(scanTimerRef.current)
-      scanTimerRef.current = null
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop()
+        }
+      } catch (err) {
+        console.error('Error stopping scanner:', err)
+      } finally {
+        scannerRef.current = null
+        setIsScanning(false)
+      }
     }
-    streamRef.current?.getTracks().forEach((track) => track.stop())
-    streamRef.current = null
-    setIsScanning(false)
   }
 
-  useEffect(() => () => stopScanner(), [])
+  useEffect(() => {
+    return () => {
+      stopScanner()
+    }
+  }, [])
 
   const getQueueId = (value) => {
-    const scannedValue = value.trim()
-    const rawQueueId = scannedValue.match(/^LW-[A-Z0-9]+$/i)
-    if (rawQueueId) return rawQueueId[0].toUpperCase()
+    const scannedValue = (value || '').trim()
+    const match = scannedValue.match(/LW-[A-Z0-9]+/i)
+    if (match) return match[0].toUpperCase()
 
     try {
       const url = new URL(scannedValue)
-      const match = url.pathname.match(/^\/join\/([^/?#]+)$/i)
-      return match ? decodeURIComponent(match[1]).toUpperCase() : ''
+      const pathMatch = url.pathname.match(/([^/?#]+)$/i)
+      if (pathMatch && pathMatch[1].toUpperCase().startsWith('LW-')) {
+        return pathMatch[1].toUpperCase()
+      }
     } catch {
-      return ''
+      // not a url
     }
+    return ''
   }
 
-  const handleScanResult = (value) => {
-    const queueId = getQueueId(value)
+  const handleScanResult = async (decodedText) => {
+    const queueId = getQueueId(decodedText)
     if (!queueId) {
-      setError('This QR code is not a LineWise queue code.')
+      setError('Scanned code is not a valid LineWise queue code (expected format: LW-XXXX).')
       return
     }
-    stopScanner()
+    await stopScanner()
     navigate(`/join/${queueId}`)
   }
 
   const startScanner = async () => {
     setError('')
-    if (!scannerSupported) {
-      setError('Camera QR scanning is not supported by this browser. Please use Chrome on your phone or enter the Queue ID.')
-      return
-    }
+    setIsScanning(true)
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-        audio: false,
-      })
-      streamRef.current = stream
-      setIsScanning(true)
+    setTimeout(async () => {
+      try {
+        const qrScanner = new Html5Qrcode('qr-reader')
+        scannerRef.current = qrScanner
 
-      // Wait for React to attach the video element before starting detection.
-      window.setTimeout(async () => {
-        if (!videoRef.current) return
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-        const detector = new window.BarcodeDetector({ formats: ['qr_code'] })
-        scanTimerRef.current = window.setInterval(async () => {
-          try {
-            const codes = await detector.detect(videoRef.current)
-            if (codes.length) handleScanResult(codes[0].rawValue)
-          } catch {
-            // A frame can be unavailable while the camera initializes; keep scanning.
+        await qrScanner.start(
+          { facingMode: 'environment' },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+          },
+          (decodedText) => {
+            handleScanResult(decodedText)
+          },
+          () => {
+            // Frame scan failure is normal during scanning
           }
-        }, 400)
-      }, 0)
-    } catch {
-      setError('Camera access was denied or unavailable. Allow camera permission, then try again.')
-      stopScanner()
-    }
+        )
+      } catch (err) {
+        console.error('Camera access error:', err)
+        setError(
+          'Unable to access camera. Please allow camera permissions in your browser or enter the Queue ID below.'
+        )
+        setIsScanning(false)
+      }
+    }, 100)
   }
 
   const handleManualSubmit = (e) => {
     e.preventDefault()
-    const cleanCode = code.trim().toUpperCase()
+    const cleanCode = getQueueId(code) || code.trim().toUpperCase()
     if (!cleanCode) {
-      setError('Please enter a Queue ID')
+      setError('Please enter a Queue ID (e.g. LW-8181A820)')
       return
     }
-    // Navigate to Join Queue page
     navigate(`/join/${cleanCode}`)
   }
 
@@ -101,25 +107,37 @@ function ScanCode() {
           Scan or Enter Queue Code
         </h1>
         <p className="mt-2 text-gray-600 dark:text-slate-400">
-          Scan the counter QR code with your camera, or enter the Queue ID manually.
+          Scan the counter QR code with your smartphone camera, or enter the Queue ID manually.
         </p>
 
+        {/* Scanner Card */}
         <div className="mt-8 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-blue-100 dark:border-slate-800 space-y-4">
           {isScanning ? (
-            <>
-              <video ref={videoRef} muted playsInline className="w-full rounded-xl bg-black aspect-square object-cover" />
-              <button type="button" onClick={stopScanner} className="w-full py-3 border border-gray-300 dark:border-slate-700 rounded-xl font-semibold text-gray-700 dark:text-slate-200">
+            <div className="space-y-4">
+              <div id="qr-reader" className="w-full overflow-hidden rounded-xl bg-black aspect-square" />
+              <button
+                type="button"
+                onClick={stopScanner}
+                className="w-full py-3 border border-gray-300 dark:border-slate-700 rounded-xl font-semibold text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800 transition"
+              >
                 Stop Camera
               </button>
-            </>
+            </div>
           ) : (
-            <button type="button" onClick={startScanner} className="w-full py-4 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 transition">
-              Scan Queue QR Code
+            <button
+              type="button"
+              onClick={startScanner}
+              className="w-full py-4 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 transition cursor-pointer"
+            >
+              📷 Scan Queue QR Code
             </button>
           )}
-          <p className="text-xs text-gray-500 dark:text-slate-400">Allow camera access when prompted. The QR code must be generated by LineWise.</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">
+            Works universally on iPhone Safari, Android Chrome, mobile browsers, and webcams.
+          </p>
         </div>
 
+        {/* Manual Input Form */}
         <form
           onSubmit={handleManualSubmit}
           className="mt-8 bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-sm border border-blue-100 dark:border-slate-800 space-y-4 text-left"
@@ -138,16 +156,16 @@ function ScanCode() {
               type="text"
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="e.g. LW-7A8B9C"
+              placeholder="e.g. LW-8181A820"
               className="w-full px-4 py-3 font-mono text-lg rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full py-4 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 transition"
+            className="w-full py-4 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 transition cursor-pointer"
           >
-            Find Queue & Join Line
+            Find Queue &amp; Join Line
           </button>
         </form>
       </div>

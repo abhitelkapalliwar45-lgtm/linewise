@@ -71,7 +71,7 @@ class DatabaseService:
     def get_queue(self, queue_id: str) -> Optional[dict]:
         return self._without_id(self.mongo_db.queues.find_one({"id": queue_id}))
 
-    def join_queue(self, queue_id: str, customer_name: str, customer_phone: str) -> Optional[dict]:
+    def join_queue(self, queue_id: str, customer_name: str, customer_phone: str, customer_email: str = "") -> Optional[dict]:
         queue = self.mongo_db.queues.find_one_and_update(
             {"id": queue_id, "status": QueueStatus.ACTIVE.value}, {"$inc": {"current_ticket_number": 1}},
             return_document=ReturnDocument.AFTER)
@@ -80,7 +80,7 @@ class DatabaseService:
         number = queue["current_ticket_number"]
         ticket = {"id": f"TKN-{secrets.token_hex(4).upper()}", "queue_id": queue_id,
                   "ticket_number": number, "display_number": f"A-{number}", "customer_name": customer_name,
-                  "customer_phone": customer_phone, "joined_at": datetime.now().isoformat(),
+                  "customer_phone": customer_phone, "customer_email": customer_email, "joined_at": datetime.now().isoformat(),
                   "joined_timestamp": time.time(), "called_at": None, "service_started_at": None,
                   "completed_at": None, "status": TicketStatus.WAITING.value, "qvc_otp": None, "qvc_attempts": 0}
         self.mongo_db.tickets.insert_one(ticket.copy())

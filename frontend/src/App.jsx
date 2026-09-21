@@ -3,6 +3,8 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import Home from './pages/Home'
 import GetStarted from './pages/GetStarted'
+import AdminPortal from './pages/AdminPortal'
+import UserPortal from './pages/UserPortal'
 import GenerateCode from './pages/GenerateCode'
 import ScanCode from './pages/ScanCode'
 import JoinQueue from './pages/JoinQueue'
@@ -18,6 +20,8 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/get-started" element={<GetStarted />} />
+            <Route path="/admin-portal" element={<AdminPortal />} />
+            <Route path="/user-portal" element={<UserPortal />} />
             <Route path="/generate-code" element={<GenerateCode />} />
             <Route path="/scan" element={<ScanCode />} />
             <Route path="/join/:queueId" element={<JoinQueue />} />
